@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] — 2026-04-27
+
+### Changed
+- **CI: switched npm publishing to Trusted Publishing (OIDC).** The
+  release workflow no longer needs an `NPM_TOKEN` secret; GitHub Actions
+  now mints a short-lived OIDC token at publish time, and npm verifies
+  it came from this repo's `release.yml`. Published artifacts also carry
+  npm provenance attestation automatically.
+- The release workflow now upgrades npm to the latest version before
+  publishing, since Trusted Publishing requires npm ≥ 11.5.1 and Node
+  22 still ships with npm 10.x.
+
+### Documentation
+- No user-facing API changes in this release.
+
+## [0.2.1] — 2026-04-27
+
+### Added
+- Project logo (`assets/logo.svg`) — an abstract terminal + proxy stack
+  + sync mark — displayed at the top of the README.
+- "Works with OpenCode" and "Powered by LiteLLM" compatibility badges
+  in the README header.
+
+### Changed
+- Release workflow now also triggers on `v*` tag pushes and
+  automatically creates the matching GitHub Release with auto-generated
+  notes, so a single `git push --follow-tags` produces both an npm
+  release and a GitHub Release.
+
 ## [0.2.0] — 2026-04-27
 
 ### Added
@@ -80,7 +109,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions CI workflow (typecheck on Node 20 & 22).
 - Auto-publish workflow on GitHub release (requires `NPM_TOKEN` secret).
 
-[Unreleased]: https://github.com/yuseferi/opencode-litellm/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/yuseferi/opencode-litellm/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/yuseferi/opencode-litellm/compare/v0.2.1...v0.2.2
+[0.2.1]: https://github.com/yuseferi/opencode-litellm/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/yuseferi/opencode-litellm/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/yuseferi/opencode-litellm/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/yuseferi/opencode-litellm/releases/tag/v0.1.0
