@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="opencode-litellm">
+  <title>opencode-litellm</title>
+
+  <!-- Rounded square backdrop -->
+  <rect x="4" y="4" width="120" height="120" rx="24" ry="24" fill="#0B1020"/>
+  <rect x="4.5" y="4.5" width="119" height="119" rx="23.5" ry="23.5" fill="none" stroke="#1F2A44" stroke-width="1"/>
+
+  <!-- ============================================================
+       LEFT: Terminal window (represents OpenCode CLI)
+       ============================================================ -->
+  <g>
+    <!-- Window frame -->
+    <rect x="14" y="40" width="38" height="48" rx="5" ry="5" fill="#111827" stroke="#7C5CFF" stroke-width="2"/>
+    <!-- Title bar -->
+    <rect x="14" y="40" width="38" height="9" rx="5" ry="5" fill="#7C5CFF"/>
+    <rect x="14" y="46" width="38" height="3" fill="#7C5CFF"/>
+    <!-- Traffic-light dots -->
+    <circle cx="19" cy="44.5" r="1.4" fill="#0B1020"/>
+    <circle cx="23.5" cy="44.5" r="1.4" fill="#0B1020"/>
+    <circle cx="28" cy="44.5" r="1.4" fill="#0B1020"/>
+    <!-- Prompt: chevron + cursor -->
+    <path d="M20 62 L 26 67 L 20 72" fill="none" stroke="#E5E7EB" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="29" y="65.5" width="14" height="3" rx="1" fill="#E5E7EB"/>
+  </g>
+
+  <!-- ============================================================
+       RIGHT: Stacked proxy layers (represents LiteLLM)
+       ============================================================ -->
+  <g stroke="#22D3EE" stroke-width="2" fill="#111827">
+    <rect x="76" y="46" width="38" height="11" rx="3" ry="3"/>
+    <rect x="76" y="60" width="38" height="11" rx="3" ry="3"/>
+    <rect x="76" y="74" width="38" height="11" rx="3" ry="3"/>
+  </g>
+  <!-- Indicator dots on each layer -->
+  <g fill="#22D3EE">
+    <circle cx="82" cy="51.5" r="1.8"/>
+    <circle cx="82" cy="65.5" r="1.8"/>
+    <circle cx="82" cy="79.5" r="1.8"/>
+  </g>
+  <!-- Layer label bars -->
+  <g fill="#E5E7EB" opacity="0.85">
+    <rect x="88" y="50" width="20" height="3" rx="1"/>
+    <rect x="88" y="64" width="20" height="3" rx="1"/>
+    <rect x="88" y="78" width="20" height="3" rx="1"/>
+  </g>
+
+  <!-- ============================================================
+       CENTER: Sync / refresh arrows (auto-discovery)
+       ============================================================ -->
+  <g transform="translate(64 64)">
+    <!-- Top arc: left -> right -->
+    <path d="M -10 -3 A 10 10 0 0 1 10 -3" fill="none" stroke="#10B981" stroke-width="2.6" stroke-linecap="round"/>
+    <!-- Top arrow head pointing right -->
+    <path d="M 10 -3 L 6 -7 M 10 -3 L 6 1" fill="none" stroke="#10B981" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Bottom arc: right -> left -->
+    <path d="M 10 3 A 10 10 0 0 1 -10 3" fill="none" stroke="#10B981" stroke-width="2.6" stroke-linecap="round"/>
+    <!-- Bottom arrow head pointing left -->
+    <path d="M -10 3 L -6 -1 M -10 3 L -6 7" fill="none" stroke="#10B981" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
