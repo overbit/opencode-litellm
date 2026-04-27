@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-04-27
+
+### Changed (BREAKING)
+- **Switched from the `config` lifecycle hook to the `provider.models`
+  hook.** The `config` hook turned out to be a read-only notification
+  in OpenCode's plugin API — mutations to `config.provider.litellm.models`
+  never reached the runtime, so the `0.2.x` formatter improvements
+  were dead code in production. The plugin now implements the
+  documented `provider.models` hook, which is the supported mechanism
+  for plugins to add models to a provider.
+- **Discovered models are emitted as V2 `Model` entries** (the shape
+  required by `provider.models`), with `api.id` set per-model so the
+  upstream `@ai-sdk/openai-compatible` adapter sends the correct
+  model name on the wire. Previously, with the `config` hook
+  approach, requests would fail with errors like "Tried to access
+  litellm" because the wire model name was the provider id rather
+  than the model id.
+- **All discovered models register under `litellm` by default**,
+  including reasoning-tier models like `gpt-5*`. The `0.2.x` behavior
+  of routing those models exclusively to a `litellm-responses` provider
+  was a footgun: users who didn't know to declare that second provider
+  silently lost ~30 models from their picker.
+
+### Added
+- **Two `Plugin` exports**: `LiteLLMPlugin` (id `litellm`) and
+  `LiteLLMResponsesPlugin` (id `litellm-responses`). Both run when
+  the package is loaded; `LiteLLMResponsesPlugin` is a no-op unless
+  the user has declared `litellm-responses` in their `opencode.json`.
+- **Opt-in transport split**: declare a `litellm-responses` provider
+  in `opencode.json` to route reasoning-tier models through the
+  OpenAI Responses API. The `transport` / `responsesApiModels` /
+  `chatApiModels` options on either provider control which side a
+  given model lives on.
+
+### Removed
+- `src/plugin/config-hook.ts` — the old `config` lifecycle hook entry
+  point.
+- `src/plugin/enhance-config.ts` — the old config-mutation logic
+  (replaced by `discover.ts` + `build-model.ts`).
+
+### Notes
+- This release requires `@opencode-ai/plugin >= 1.14` for the
+  `provider.models` hook contract and the `@opencode-ai/sdk/v2`
+  `Model`/`Provider` types.
+- Existing `opencode.json` configs continue to work unchanged for
+  users on the chat-only setup. Users who relied on the implicit
+  `litellm-responses` split now see all models under a single
+  provider; declare the responses provider explicitly to restore
+  the split.
+
 ## [0.2.3] — 2026-04-27
 
 ### Fixed
@@ -133,7 +183,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions CI workflow (typecheck on Node 20 & 22).
 - Auto-publish workflow on GitHub release (requires `NPM_TOKEN` secret).
 
-[Unreleased]: https://github.com/yuseferi/opencode-litellm/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/yuseferi/opencode-litellm/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/yuseferi/opencode-litellm/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/yuseferi/opencode-litellm/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/yuseferi/opencode-litellm/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/yuseferi/opencode-litellm/compare/v0.2.0...v0.2.1
