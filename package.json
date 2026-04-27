@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "opencode-litellm",
+  "version": "0.1.0",
+  "description": "OpenCode plugin for LiteLLM proxy support with auto-detection and dynamic model discovery",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "opencode",
+    "litellm",
+    "lite-llm",
+    "plugin",
+    "llm-proxy",
+    "openai-compatible"
+  ],
+  "author": "Yusef Mohamadi (https://github.com/yuseferi)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yuseferi/opencode-litellm.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yuseferi/opencode-litellm/issues"
+  },
+  "homepage": "https://github.com/yuseferi/opencode-litellm#readme",
+  "dependencies": {
+    "@opencode-ai/plugin": "^1.0.166"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.3",
+    "typescript": "^5.9.3"
+  }
+}
