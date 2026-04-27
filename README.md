@@ -89,9 +89,9 @@ If LiteLLM is on `localhost:4000`, `:8000`, or `:8080`, the plugin self-configur
 }
 ```
 
-### Explicit provider
+### Explicit provider (custom URL or auth)
 
-Override the URL, set an API key, or pre-define curated models that the plugin will preserve:
+You **do not need to list any models** — the plugin still discovers them from `/v1/models` automatically. Use this form only when you need to point at a non-default URL or pass an API key:
 
 ```jsonc
 {
@@ -101,6 +101,25 @@ Override the URL, set an API key, or pre-define curated models that the plugin w
     "litellm": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "LiteLLM (proxy)",
+      "options": {
+        "baseURL": "http://litellm.internal.example.com/v1",
+        "apiKey": "{env:LITELLM_API_KEY}"
+      }
+    }
+  }
+}
+```
+
+That's the whole config — every model in your LiteLLM `model_list` will appear in the picker.
+
+### Overriding or curating individual models (optional)
+
+If you want to rename a model in the picker, pin its `organizationOwner`, or otherwise hand-curate metadata, add it under `models`. The plugin **preserves your entries verbatim** and only injects discovered models whose key isn't already defined:
+
+```jsonc
+{
+  "provider": {
+    "litellm": {
       "options": {
         "baseURL": "http://litellm.internal.example.com/v1",
         "apiKey": "{env:LITELLM_API_KEY}"
@@ -116,7 +135,7 @@ Override the URL, set an API key, or pre-define curated models that the plugin w
 }
 ```
 
-The plugin will **keep your hand-defined `openai/gpt-4o`** and only inject models it discovers that aren't already there.
+Here, `openai/gpt-4o` keeps your custom name; every other model from the proxy is still discovered and added automatically.
 
 ### Reasoning models (gpt-5, o1/o3/o4)
 
