@@ -18,19 +18,15 @@ jobs:
         with:
           fetch-depth: 0 # full history so release notes can diff against prior tag
 
+      # Trusted Publishing (OIDC) requires npm >= 11.5.1. Node 24 ships
+      # with npm 11 by default, avoiding a flaky in-place npm self-upgrade
+      # across majors (which fails with MODULE_NOT_FOUND on the hosted runner).
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           registry-url: https://registry.npmjs.org
           cache: npm
-
-      # Trusted Publishing (OIDC) requires npm >= 11.5.1; Node 22 ships
-      # with npm 10.x by default. Use --force because in-place self-upgrade
-      # across majors can fail mid-install with MODULE_NOT_FOUND on internal
-      # deps; --force makes npm fully replace its own install tree.
-      - name: Upgrade npm
-        run: npm install -g npm@latest --force
 
       - name: Install dependencies
         run: npm ci
