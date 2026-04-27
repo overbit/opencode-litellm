@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-04-27
+
+### Documentation
+- Comprehensive README rewrite with hero section, badges (npm version,
+  downloads, CI, license, TypeScript strict, PRs welcome), feature
+  table, configuration examples, FAQ, compatibility matrix, and a
+  Mermaid sequence diagram of the discovery flow.
+- Added `CONTRIBUTING.md` covering project philosophy, dev setup,
+  local plugin testing via `npm link`, PR checklist, and release process.
+- Added `CHANGELOG.md` following the Keep a Changelog 1.1.0 format.
+- Added GitHub issue templates (bug report + feature request as YAML
+  forms) and a structured pull-request template.
+- Added `.github/dependabot.yml` for weekly npm + GitHub Actions updates.
+
+### Fixed
+- Removed an accidental self-dependency (`opencode-plugin-litellm`) that
+  was added to `package.json` by an earlier `npm link` invocation.
+
 ## [0.1.0] — 2026-04-27
 
 ### Added
@@ -27,5 +45,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions CI workflow (typecheck on Node 20 & 22).
 - Auto-publish workflow on GitHub release (requires `NPM_TOKEN` secret).
 
-[Unreleased]: https://github.com/yuseferi/opencode-litellm/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/yuseferi/opencode-litellm/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/yuseferi/opencode-litellm/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/yuseferi/opencode-litellm/releases/tag/v0.1.0
