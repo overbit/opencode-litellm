@@ -26,9 +26,11 @@ jobs:
           cache: npm
 
       # Trusted Publishing (OIDC) requires npm >= 11.5.1; Node 22 ships
-      # with npm 10.x by default.
+      # with npm 10.x by default. Use --force because in-place self-upgrade
+      # across majors can fail mid-install with MODULE_NOT_FOUND on internal
+      # deps; --force makes npm fully replace its own install tree.
       - name: Upgrade npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@latest --force
 
       - name: Install dependencies
         run: npm ci
