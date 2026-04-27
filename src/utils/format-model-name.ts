@@ -15,6 +15,62 @@ export function extractModelOwner(model: LiteLLMModel): string | undefined {
 }
 
 /**
+ * Strip Vertex-style version pinning suffixes that have no place in a
+ * display name. LiteLLM exposes Anthropic-on-Vertex models with ids
+ * like `claude-opus-4-5@20251101` or `claude-sonnet-4-6@default`; those
+ * `@…` suffixes mean "this exact dated revision" or "the
+ * provider-default revision" and aren't part of the model's brand name.
+ */
+function stripVersionSuffix(part: string): string {
+  return part.replace(/@(default|\d{6,8})$/i, '')
+}
+
+/**
+ * Heuristic: does this numeric token look like a real version component
+ * (single or double digit) rather than a date stamp or build number?
+ *
+ * Anthropic / OpenAI version components are always 1–2 digits in
+ * practice (`3`, `4`, `5`, `16`); a 6–8 digit token is almost certainly
+ * a `YYYYMMDD` revision stamp like `20251101` and must NOT be merged
+ * with the digit before it.
+ */
+function looksLikeVersionComponent(token: string): boolean {
+  return /^\d{1,2}$/.test(token)
+}
+
+/**
+ * Collapse two adjacent numeric tokens at the end of a tokenised id
+ * into a single dotted version token. Anthropic uses dash-only ids
+ * (`claude-opus-4-5`) where the trailing `4-5` is really a `4.5`
+ * version pair, but the formatter would otherwise render it as
+ * "Claude Opus 4 5".
+ *
+ * Conservative on purpose:
+ *   - Only the LAST adjacent pair is collapsed, so `gpt-3-5-turbo-16k`
+ *     keeps `[3, 5, turbo, 16k]` (`turbo` between blocks the merge).
+ *   - Both tokens must look like real version components (1–2 digits) —
+ *     this avoids merging date stamps in ids like
+ *     `claude-opus-4-5-20251101`, where the trailing `20251101` is a
+ *     YYYYMMDD revision and must stay separate.
+ *   - We refuse to collapse if the token immediately AFTER the pair is
+ *     also numeric (would create ambiguity in `1-2-3` runs).
+ */
+function joinTrailingVersionPair(tokens: string[]): string[] {
+  for (let i = tokens.length - 1; i >= 1; i--) {
+    const a = tokens[i - 1]
+    const b = tokens[i]
+    if (looksLikeVersionComponent(a) && looksLikeVersionComponent(b)) {
+      const next = tokens[i + 1]
+      if (next === undefined || !/^\d+$/.test(next)) {
+        const merged = [...tokens.slice(0, i - 1), `${a}.${b}`, ...tokens.slice(i + 1)]
+        return merged
+      }
+    }
+  }
+  return tokens
+}
+
+/**
  * Categorize the model so we can attach sensible `modalities` metadata
  * in the OpenCode provider config.
  */
@@ -37,11 +93,23 @@ export function categorizeModel(model: LiteLLMModel): 'chat' | 'embedding' | 'im
 /**
  * Format a LiteLLM model ID into a human readable display name.
  *
+ * Pre-processing:
+ *   - Strip the first `provider/` segment (`vertex_ai/`, `openai/`, …).
+ *   - Strip Vertex revision suffixes (`@<date>`, `@default`).
+ *
+ * Tokenisation post-processing:
+ *   - Collapse a trailing pair of bare numeric tokens into a single
+ *     dotted version. Anthropic uses dash-only ids — `claude-opus-4-7`
+ *     would otherwise render as "Claude Opus 4 7" instead of
+ *     "Claude Opus 4.7".
+ *
  * Examples:
- *   "openai/gpt-4o-mini"             -> "GPT 4o Mini"
- *   "anthropic/claude-3-5-sonnet"    -> "Claude 3 5 Sonnet"
- *   "bedrock/amazon.nova-pro-v1"     -> "Amazon Nova Pro V1"
- *   "qwen/qwen3-30b-a3b"             -> "Qwen3 30B A3B"
+ *   "openai/gpt-4o-mini"                  -> "GPT 4o Mini"
+ *   "claude-opus-4-7"                     -> "Claude Opus 4.7"
+ *   "claude-opus-4-5@20251101"            -> "Claude Opus 4.5"
+ *   "claude-sonnet-4-6@default"           -> "Claude Sonnet 4.6"
+ *   "bedrock/amazon.nova-pro-v1"          -> "Amazon Nova Pro V1"
+ *   "qwen/qwen3-30b-a3b"                  -> "Qwen3 30B A3B"
  */
 export function formatModelName(model: LiteLLMModel): string {
   const { id } = model
@@ -50,38 +118,46 @@ export function formatModelName(model: LiteLLMModel): string {
   // ids like `bedrock/amazon.nova-pro-v1` still carry the vendor name
   // through to the display.
   const slashIdx = id.indexOf('/')
-  const modelPart = slashIdx >= 0 ? id.slice(slashIdx + 1) : id
+  const afterProvider = slashIdx >= 0 ? id.slice(slashIdx + 1) : id
+
+  // Strip Vertex revision suffixes (`@20251101`, `@default`).
+  const modelPart = stripVersionSuffix(afterProvider)
 
   const acronyms = new Set([
     'gpt', 'oss', 'api', 'gguf', 'ggml', 'nomic', 'vl', 'it', 'mlx',
     'llm', 'ai', 'sdk', 'aws', 'gcp', 'tts', 'stt', 'mm',
   ])
 
-  const tokens = modelPart
+  const rawTokens = modelPart
     .split(/[-_.]/) // split on -, _ and .
     .filter(Boolean)
-    .map((token) => {
-      const lower = token.toLowerCase()
-      if (acronyms.has(lower)) return token.toUpperCase()
-      // sizes (30b, 7b, 4k...)
-      if (/^\d+[bkmg]$/i.test(token)) return token.toUpperCase()
-      // quantizations (q4, q8...)
-      if (/^q\d+$/i.test(token)) return token.toUpperCase()
-      // semantic versions like 3.5
-      if (/^\d+\.\d+/.test(token)) return token
-      // shapes like a3b, e4b, 3n  -> uppercase
-      if (/^[a-z]\d+[a-z]?$/i.test(token)) {
-        return token.toUpperCase()
-      }
-      // shapes like "4o" (OpenAI branding) — keep digit + lowercase letter
-      if (/^\d+[a-z]$/i.test(token)) {
-        return token.toLowerCase()
-      }
-      return token.charAt(0).toUpperCase() + token.slice(1).toLowerCase()
-    })
-    .join(' ')
 
-  return tokens || id
+  // Collapse a trailing numeric pair (`4-5`) into a dotted version
+  // (`4.5`) for Anthropic-style ids. No-op when versions already use
+  // dots (which survive the split as separate tokens but only re-merge
+  // when both sides are pure digits).
+  const tokens = joinTrailingVersionPair(rawTokens).map((token) => {
+    const lower = token.toLowerCase()
+    if (acronyms.has(lower)) return token.toUpperCase()
+    // sizes (30b, 7b, 4k...)
+    if (/^\d+[bkmg]$/i.test(token)) return token.toUpperCase()
+    // quantizations (q4, q8...)
+    if (/^q\d+$/i.test(token)) return token.toUpperCase()
+    // dotted versions (3.5, 2.5, 4.7) — emitted by joinTrailingVersionPair
+    // or naturally present in dotted base_models.
+    if (/^\d+\.\d+/.test(token)) return token
+    // shapes like a3b, e4b, 3n  -> uppercase
+    if (/^[a-z]\d+[a-z]?$/i.test(token)) {
+      return token.toUpperCase()
+    }
+    // shapes like "4o" (OpenAI branding) — keep digit + lowercase letter
+    if (/^\d+[a-z]$/i.test(token)) {
+      return token.toLowerCase()
+    }
+    return token.charAt(0).toUpperCase() + token.slice(1).toLowerCase()
+  })
+
+  return tokens.join(' ') || id
 }
 
 /**

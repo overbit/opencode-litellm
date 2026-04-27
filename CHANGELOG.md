@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] — 2026-04-27
+
+### Fixed
+- **Display names for Anthropic version pairs.** Models with dash-only
+  version ids like `claude-opus-4-7` now render as "Claude Opus 4.7"
+  instead of "Claude Opus 4 7". The formatter detects a trailing pair
+  of 1–2 digit numeric tokens and joins them with a dot, matching how
+  the upstream models are actually branded.
+- **No regression on dated revision ids.** The new pair-joining
+  heuristic deliberately ignores tokens longer than 2 digits, so ids
+  like `claude-opus-4-5-20251101` keep the YYYYMMDD revision stamp
+  separate (renders as "Claude Opus 4 5 20251101", same as before)
+  rather than collapsing it into "Claude Opus 4 5.20251101".
+- **Strip Vertex `@<date>` and `@default` suffixes** when present on
+  the model id (most LiteLLM proxies dash-join these instead, but a
+  few configurations pass the raw `@`-suffixed form through).
+
+### Notes
+- Mid-id version pairs (e.g. `gemini-2-5-pro`, `gpt-5-1-codex-low`)
+  still render with separate digits ("Gemini 2 5 Pro"). Fixing those
+  cleanly requires consulting LiteLLM's `/v1/model/info` endpoint for
+  the canonical `base_model`, which is a larger change being held for
+  a future release.
+
 ## [0.2.2] — 2026-04-27
 
 ### Changed
@@ -109,7 +133,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions CI workflow (typecheck on Node 20 & 22).
 - Auto-publish workflow on GitHub release (requires `NPM_TOKEN` secret).
 
-[Unreleased]: https://github.com/yuseferi/opencode-litellm/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/yuseferi/opencode-litellm/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/yuseferi/opencode-litellm/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/yuseferi/opencode-litellm/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/yuseferi/opencode-litellm/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/yuseferi/opencode-litellm/compare/v0.1.1...v0.2.0
