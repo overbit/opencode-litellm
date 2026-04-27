@@ -1,0 +1,76 @@
+name: 🐛 Bug report
+description: Something isn't working as expected
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug! Please fill out the sections below so we can reproduce it quickly.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear and concise description of the bug.
+      placeholder: When I start OpenCode, my LiteLLM models don't appear...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: I expected to see all models from my LiteLLM model_list in the picker.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Numbered list of exact steps. Include relevant config snippets.
+      placeholder: |
+        1. Start LiteLLM with `litellm --config config.yaml`
+        2. Start OpenCode with the following opencode.json: ...
+        3. Open the model picker
+        4. Notice that ...
+    validations:
+      required: true
+
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      placeholder: 0.1.0
+    validations:
+      required: true
+
+  - type: input
+    id: litellm-version
+    attributes:
+      label: LiteLLM version
+      placeholder: e.g. 1.40.0
+    validations:
+      required: true
+
+  - type: input
+    id: opencode-version
+    attributes:
+      label: OpenCode version
+    validations:
+      required: true
+
+  - type: input
+    id: env
+    attributes:
+      label: Node.js / Bun version & OS
+      placeholder: e.g. Node 22.5, macOS 14.5
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Any `[opencode-litellm]` log lines, plus the raw `/v1/models` response if you can capture it.
+      render: shell

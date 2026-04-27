@@ -1,0 +1,35 @@
+name: ✨ Feature request
+description: Suggest an idea for the plugin
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the use case, not the solution.
+      placeholder: When using LiteLLM with X, I have to manually do Y every time...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      placeholder: Describe how you'd like the plugin to behave.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      placeholder: Any workarounds you've tried, or other plugins that solve part of this.
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      description: This plugin focuses narrowly on LiteLLM model discovery. Please confirm your request fits that scope.
+      options:
+        - label: My request is related to LiteLLM model discovery, configuration, or routing
+          required: true

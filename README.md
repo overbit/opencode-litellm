@@ -1,40 +1,80 @@
+<div align="center">
+
 # opencode-litellm
 
-[![npm version](https://img.shields.io/npm/v/opencode-plugin-litellm.svg)](https://www.npmjs.com/package/opencode-plugin-litellm)
-[![CI](https://github.com/yuseferi/opencode-litellm/actions/workflows/ci.yml/badge.svg)](https://github.com/yuseferi/opencode-litellm/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+**Drop-in [LiteLLM](https://github.com/BerriAI/litellm) provider for [OpenCode](https://opencode.ai) with zero configuration.**
 
-OpenCode plugin for [LiteLLM](https://github.com/BerriAI/litellm) proxy support
-with **auto-detection** and **dynamic model discovery**.
+[![npm version](https://img.shields.io/npm/v/opencode-plugin-litellm.svg?style=flat-square&color=cb3837&logo=npm)](https://www.npmjs.com/package/opencode-plugin-litellm)
+[![npm downloads](https://img.shields.io/npm/dm/opencode-plugin-litellm.svg?style=flat-square&color=cb3837)](https://www.npmjs.com/package/opencode-plugin-litellm)
+[![CI](https://img.shields.io/github/actions/workflow/status/yuseferi/opencode-litellm/ci.yml?style=flat-square&label=CI&logo=github)](https://github.com/yuseferi/opencode-litellm/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](./LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?style=flat-square&logo=typescript&logoColor=white)](./tsconfig.json)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](./CONTRIBUTING.md)
 
-Inspired by [`opencode-lmstudio`](https://github.com/agustif/opencode-lmstudio).
+Auto-detect a running LiteLLM proxy, pull every model from `/v1/models`, and register them in OpenCode.
+**No model lists to hand-maintain. No restart loops. No surprises.**
 
-> **npm package name:** `opencode-plugin-litellm` (the unscoped `opencode-litellm`
-> name was taken on npm). Repo name and plugin export remain `opencode-litellm`.
+[Quickstart](#-quickstart) · [Configuration](#%EF%B8%8F-configuration) · [How it works](#-how-it-works) · [FAQ](#-faq) · [Contributing](./CONTRIBUTING.md)
 
-## Features
+</div>
 
-- **Auto-detection** — finds a LiteLLM proxy running on common ports (`4000`, `8000`, `8080`)
-- **Dynamic model discovery** — queries `/v1/models` so you never hand-maintain a model list
-- **OpenAI-compatible** — registers under OpenCode as `@ai-sdk/openai-compatible`
-- **Vendor-aware** — extracts `litellm_provider` (or the `provider/model` prefix) into `organizationOwner`
-- **Smart formatting** — turns `anthropic/claude-3-5-sonnet` into `Claude 3 5 Sonnet` in the picker
-- **Categorization** — chat / embedding / image / audio modalities are inferred from the model `mode` or id
-- **Non-blocking** — discovery is capped at 5s so a slow proxy never blocks OpenCode startup
+> **npm package:** `opencode-plugin-litellm` &nbsp;·&nbsp; **GitHub repo:** `yuseferi/opencode-litellm`
+> The unscoped `opencode-litellm` npm name was already taken by another author.
 
-## Installation
+---
+
+## ✨ Why this plugin?
+
+Maintaining a `models` block in `opencode.json` for every model your LiteLLM proxy exposes is a chore — every new entry in your `model_list` means a config edit, a restart, and a context-switch.
+
+`opencode-litellm` removes that loop entirely. It hooks into OpenCode's `config` lifecycle, queries your LiteLLM proxy at startup, and merges the discovered models into your config in memory. The result: every model in `litellm config.yaml` shows up in OpenCode's picker the moment you start it — automatically.
+
+## 🚀 Quickstart
 
 ```bash
+# 1. Install
 npm install opencode-plugin-litellm
-# or
-bun add opencode-plugin-litellm
+# or: bun add opencode-plugin-litellm
 ```
 
-## Usage
+```jsonc
+// 2. Add to opencode.json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["opencode-plugin-litellm@latest"]
+}
+```
+
+```bash
+# 3. Start LiteLLM (if it isn't already)
+litellm --config config.yaml --port 4000
+
+# 4. Run OpenCode — every model in your LiteLLM model_list is now available.
+opencode
+```
+
+That's it. No provider block required.
+
+## 🎯 Features
+
+| | |
+|---|---|
+| 🔍 **Auto-detection** | Probes `localhost:4000`, `:8000`, `:8080` and adopts the first responsive proxy. |
+| 📡 **Dynamic discovery** | Queries `/v1/models` so your OpenCode model picker always reflects your live `model_list`. |
+| 🏷️ **Smart formatting** | Turns `anthropic/claude-3-5-sonnet` into `Claude 3 5 Sonnet` in the picker — handles versions, sizes, quantizations, and brand-cased names like `gpt-4o`. |
+| 🧠 **Modality-aware** | Infers `chat` / `embedding` / `image` / `audio` from the model `mode` field or id, and writes proper `modalities` metadata. |
+| 🏢 **Provider extraction** | Pulls `litellm_provider` (or the `provider/model` prefix) into `organizationOwner` so models group correctly in the UI. |
+| 🔐 **Auth-aware** | Honours `LITELLM_API_KEY` / `LITELLM_MASTER_KEY` env vars or `provider.litellm.options.apiKey`. |
+| ⏱️ **Non-blocking startup** | Discovery is capped at **5 s** — a slow or offline proxy never delays OpenCode boot. |
+| 🤝 **Non-destructive merge** | Only adds models you don't already have configured. Hand-curated entries are preserved verbatim. |
+| 🪶 **Zero runtime deps** | Only depends on `@opencode-ai/plugin`. No build step, no bundler. |
+| 🔒 **TypeScript strict** | Strict-mode compiled, fully typed public API. |
+
+## ⚙️ Configuration
 
 ### Zero-config (recommended)
 
-If a LiteLLM proxy is already running on `localhost:4000`, just add the plugin:
+If LiteLLM is on `localhost:4000`, `:8000`, or `:8080`, the plugin self-configures:
 
 ```json
 {
@@ -43,12 +83,11 @@ If a LiteLLM proxy is already running on `localhost:4000`, just add the plugin:
 }
 ```
 
-The plugin will detect the proxy, query `/v1/models`, and inject every model into
-your provider list automatically.
+### Explicit provider
 
-### Manual configuration
+Override the URL, set an API key, or pre-define curated models that the plugin will preserve:
 
-```json
+```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": ["opencode-plugin-litellm@latest"],
@@ -57,39 +96,170 @@ your provider list automatically.
       "npm": "@ai-sdk/openai-compatible",
       "name": "LiteLLM (proxy)",
       "options": {
-        "baseURL": "http://localhost:4000/v1",
+        "baseURL": "http://litellm.internal.example.com/v1",
         "apiKey": "{env:LITELLM_API_KEY}"
+      },
+      "models": {
+        "openai/gpt-4o": {
+          "name": "GPT-4o (curated)",
+          "organizationOwner": "openai"
+        }
       }
     }
   }
 }
 ```
 
-Any models you predefine under `provider.litellm.models` are kept as-is; the
-plugin only adds models it discovers that aren't already configured.
+The plugin will **keep your hand-defined `openai/gpt-4o`** and only inject models it discovers that aren't already there.
 
 ### Authentication
 
-If your LiteLLM proxy requires a master key, expose it via either:
+If your LiteLLM proxy requires a master key, expose it via either approach:
 
-- `apiKey` field inside `provider.litellm.options`, or
-- the `LITELLM_API_KEY` (or `LITELLM_MASTER_KEY`) environment variable.
+| Method | Example |
+|---|---|
+| Env var | `export LITELLM_API_KEY=sk-...` |
+| Env var (alias) | `export LITELLM_MASTER_KEY=sk-...` |
+| Config | `"options": { "apiKey": "{env:LITELLM_API_KEY}" }` |
 
-## How it works
+The env var path lets you commit `opencode.json` without leaking secrets.
 
-1. On OpenCode startup the `config` hook fires.
-2. If a `litellm` provider is configured, its `baseURL` is used. Otherwise the
-   plugin probes `localhost:4000`, `:8000`, `:8080`.
-3. Health check via `GET /v1/models`. If unreachable, the hook is a no-op.
-4. Models from `/v1/models` are turned into OpenCode model entries with
-   sensible `name`, `organizationOwner`, and `modalities` fields.
-5. Discovered models are merged on top of any user-configured ones.
+## 🔧 How it works
 
-## Requirements
+```mermaid
+sequenceDiagram
+    participant OC as OpenCode
+    participant Plugin as opencode-litellm
+    participant LL as LiteLLM proxy
 
-- OpenCode with plugin support (`@opencode-ai/plugin ^1.0.166`)
-- A running LiteLLM proxy (`pip install 'litellm[proxy]' && litellm --config config.yaml`)
+    OC->>Plugin: config(initial)
+    alt provider.litellm configured
+        Plugin->>LL: GET /v1/models @ baseURL
+    else not configured
+        Plugin->>LL: probe :4000, :8000, :8080
+        LL-->>Plugin: 200 OK on one
+        Plugin->>Plugin: auto-create provider entry
+    end
+    Plugin->>LL: GET /v1/models (with auth if set)
+    LL-->>Plugin: { data: [...models] }
+    Plugin->>Plugin: format names, infer modalities, extract owner
+    Plugin->>OC: merge into config (non-destructive)
+    OC->>OC: render model picker with all discovered models
+```
 
-## License
+1. On OpenCode startup the `config` lifecycle hook fires.
+2. If `provider.litellm` exists, its `baseURL` is used. Otherwise common ports are probed.
+3. A health check (`GET /v1/models`) verifies the proxy is reachable and authorized.
+4. Models from the response are converted into OpenCode model entries with `id`, formatted `name`, `organizationOwner`, and inferred `modalities`.
+5. Discovered models are merged on top of any user-defined ones — never overwriting them.
+6. The whole flow is wrapped in a `Promise.race` against a 5 s timeout so a slow proxy never blocks boot.
 
-MIT
+## 📋 Requirements
+
+- [OpenCode](https://opencode.ai) ≥ 0.1.x with plugin support (`@opencode-ai/plugin ^1.0.166`)
+- A running [LiteLLM](https://github.com/BerriAI/litellm) proxy:
+  ```bash
+  pip install 'litellm[proxy]'
+  litellm --config config.yaml --port 4000
+  ```
+- Node.js ≥ 20 (or Bun ≥ 1.0)
+
+## 📦 Compatibility matrix
+
+| LiteLLM version | OpenCode version | Status |
+|---|---|---|
+| ≥ 1.40 | ≥ 0.1.x | ✅ Tested |
+| 1.30 – 1.39 | ≥ 0.1.x | ⚠️ Should work (older `/v1/models` schema) |
+| < 1.30 | any | ❌ Unsupported |
+
+## ❓ FAQ
+
+<details>
+<summary><b>Why doesn't a model appear in OpenCode after I add it to LiteLLM?</b></summary>
+
+OpenCode reads the plugin output once at startup. After updating `litellm config.yaml`, restart **both** LiteLLM and OpenCode to refresh the model list.
+</details>
+
+<details>
+<summary><b>Can I use this with a remote LiteLLM proxy?</b></summary>
+
+Yes. Set `provider.litellm.options.baseURL` to your remote URL and (optionally) `apiKey`. Auto-detection only probes `localhost`, but explicit configuration works against any URL.
+</details>
+
+<details>
+<summary><b>What happens if LiteLLM is offline at startup?</b></summary>
+
+The plugin logs a warning and is a no-op. OpenCode starts normally; you just won't see LiteLLM-discovered models until you restart with the proxy up.
+</details>
+
+<details>
+<summary><b>Will my hand-curated model entries be overwritten?</b></summary>
+
+No. The merge is additive: anything you've already defined under `provider.litellm.models` is preserved exactly as-is. Discovered models are only added if their key isn't already present.
+</details>
+
+<details>
+<summary><b>Why is the npm name <code>opencode-plugin-litellm</code> and not <code>opencode-litellm</code>?</b></summary>
+
+The unscoped `opencode-litellm` was already published by another author when this project was started. The GitHub repo and exported plugin symbol still use the cleaner `opencode-litellm` name.
+</details>
+
+<details>
+<summary><b>Does this work with Ollama through LiteLLM?</b></summary>
+
+Yes — anything in your LiteLLM `model_list` shows up, including Ollama, Bedrock, Azure, OpenAI, Anthropic, Google, etc. That's the whole point of LiteLLM.
+</details>
+
+## 🛠️ Development
+
+```bash
+git clone https://github.com/yuseferi/opencode-litellm.git
+cd opencode-litellm
+npm install
+npm run typecheck
+```
+
+The project is intentionally tiny:
+
+```
+src/
+├── index.ts                    # Public exports
+├── types/index.ts              # LiteLLM API types
+├── utils/
+│   ├── litellm-api.ts          # health check, discovery, auto-detect
+│   └── format-model-name.ts    # owner extraction, name formatting, categorization
+└── plugin/
+    ├── index.ts                # LiteLLMPlugin entry
+    ├── config-hook.ts          # OpenCode config-lifecycle hook (5 s timeout)
+    └── enhance-config.ts       # core merge logic
+```
+
+See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the full contributor workflow.
+
+## 🗺️ Roadmap
+
+- [ ] Optional cost/latency overlay using LiteLLM's `/spend` and `/health` endpoints
+- [ ] In-memory cache with TTL to avoid re-querying on rapid restarts
+- [ ] Model categorization based on `litellm.proxy.config.model_list[].model_info`
+- [ ] Tests with [vitest](https://vitest.dev/)
+- [ ] `chat.params` hook for injecting LiteLLM routing tags / fallbacks
+
+Have an idea? [Open an issue](https://github.com/yuseferi/opencode-litellm/issues/new).
+
+## 🙏 Acknowledgements
+
+Inspired by [`opencode-lmstudio`](https://github.com/agustif/opencode-lmstudio) by [@agustif](https://github.com/agustif) — the architectural blueprint for OpenCode model-discovery plugins.
+
+Built on top of [LiteLLM](https://github.com/BerriAI/litellm) by the [BerriAI](https://github.com/BerriAI) team and [OpenCode](https://opencode.ai) by the OpenCode contributors.
+
+## 📄 License
+
+[MIT](./LICENSE) © [Yusef Mohamadi](https://github.com/yuseferi)
+
+---
+
+<div align="center">
+
+If this project saved you time, consider giving it a ⭐ on [GitHub](https://github.com/yuseferi/opencode-litellm).
+
+</div>

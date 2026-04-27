@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📚 OpenCode docs
+    url: https://opencode.ai/docs
+    about: General OpenCode usage questions belong here.
+  - name: 🦙 LiteLLM docs
+    url: https://docs.litellm.ai/
+    about: Questions about configuring the LiteLLM proxy itself.
+  - name: 💬 Discussions
+    url: https://github.com/yuseferi/opencode-litellm/discussions
+    about: Open-ended questions, ideas, or show-and-tell.
