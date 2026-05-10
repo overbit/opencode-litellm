@@ -1,30 +1,74 @@
 import type { Plugin, PluginInput } from '@opencode-ai/plugin'
-import { discoverBucket } from './discover'
+import {
+  autoDetectLiteLLM,
+  checkLiteLLMHealth,
+  discoverLiteLLMModels,
+  normalizeBaseURL,
+} from '../utils/litellm-api'
+import {
+  formatModelName,
+  extractModelOwner,
+  categorizeModel,
+} from '../utils/format-model-name'
+import type { LiteLLMModel } from '../types'
 
 const CHAT_PROVIDER_ID = 'litellm'
-const RESPONSES_PROVIDER_ID = 'litellm-responses'
+const DISCOVERY_TIMEOUT_MS = 5000
+
+/**
+ * Read `customHeaders` from a provider options block.
+ */
+function readCustomHeaders(
+  options: Record<string, unknown>,
+): Record<string, string> | undefined {
+  const raw = options.customHeaders
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const out: Record<string, string> = {}
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof v === 'string') out[k] = v
+    }
+    return Object.keys(out).length > 0 ? out : undefined
+  }
+  return undefined
+}
+
+/**
+ * Convert a discovered LiteLLM model into an OpenCode config-level
+ * model entry (the shape used in `provider.*.models` inside
+ * `opencode.json`).
+ */
+function toConfigModel(model: LiteLLMModel): Record<string, unknown> {
+  const type = categorizeModel(model)
+  const entry: Record<string, unknown> = {
+    name: formatModelName(model),
+  }
+  if (model.max_input_tokens || model.max_output_tokens) {
+    entry.limit = {
+      context: model.max_input_tokens ?? 0,
+      output: model.max_output_tokens ?? 0,
+    }
+  }
+  if (model.supports_function_calling) {
+    entry.tool_call = true
+  }
+  if (model.supports_vision) {
+    entry.attachment = true
+  }
+  if (type === 'embedding' || type === 'image' || type === 'audio') {
+    // skip non-chat models from the config — they can't be used as
+    // primary chat models and would clutter the picker.
+    return entry
+  }
+  return entry
+}
 
 /**
  * LiteLLM Plugin for OpenCode.
  *
- * Implements the `provider.models` hook so OpenCode populates the
- * `litellm` provider's model list from a live LiteLLM proxy at
- * startup.
- *
- * **Important:** OpenCode only calls `provider.models` when the
- * provider has at least one model defined in `opencode.json`. You
- * must include a seed model entry — it can be any model id your
- * proxy exposes. The plugin will discover and add all remaining
- * models automatically.
- *
- * By default, every discovered model is registered under the
- * `litellm` provider — including OpenAI reasoning-tier models like
- * `gpt-5*`. Most of those models work fine through
- * `/v1/chat/completions` for normal use. If you actually hit the
- * "Function tools with reasoning_effort are not supported" error
- * from OpenAI, declare a sibling `litellm-responses` provider in
- * `opencode.json` (see {@link LiteLLMResponsesPlugin}) and the
- * plugin will route those models through `/v1/responses` instead.
+ * Uses the `config` hook to discover models from a LiteLLM proxy and
+ * inject them into the provider's `models` map at startup. This is the
+ * only reliable way to dynamically populate a provider — the
+ * `provider.models` hook is not called by OpenCode for custom providers.
  *
  * Configure the provider in your `opencode.json`:
  *
@@ -37,9 +81,6 @@ const RESPONSES_PROVIDER_ID = 'litellm-responses'
  *       "options": {
  *         "baseURL": "http://localhost:4000/v1",
  *         "apiKey": "{env:LITELLM_API_KEY}"
- *       },
- *       "models": {
- *         "_": { "name": "seed" }
  *       }
  *     }
  *   }
@@ -47,65 +88,133 @@ const RESPONSES_PROVIDER_ID = 'litellm-responses'
  */
 export const LiteLLMPlugin: Plugin = async (_input: PluginInput) => {
   return {
-    provider: {
-      id: CHAT_PROVIDER_ID,
-      models: async (provider) => {
-        // 'all' (not 'chat') by default so reasoning-tier models like
-        // gpt-5* don't silently disappear when the user hasn't opted
-        // into the responses-API split. The split only kicks in when
-        // the user explicitly declares a `litellm-responses` provider.
-        return discoverBucket('all', provider, {
-          id: CHAT_PROVIDER_ID,
-          url: '',
+    config: async (config: any) => {
+      // Ensure the provider entry exists
+      if (!config.provider) config.provider = {}
+
+      const existing = config.provider[CHAT_PROVIDER_ID] as
+        | Record<string, unknown>
+        | undefined
+      const options = (existing?.options ?? {}) as Record<string, unknown>
+      const configuredBase =
+        typeof options.baseURL === 'string' ? options.baseURL : undefined
+      const configuredKey =
+        typeof options.apiKey === 'string' && options.apiKey
+          ? options.apiKey
+          : undefined
+      const envKey =
+        process.env.LITELLM_API_KEY ?? process.env.LITELLM_MASTER_KEY
+      const apiKey = configuredKey ?? envKey
+      const customHeaders = readCustomHeaders(options)
+
+      // Resolve base URL
+      let baseURL: string | null = null
+      if (configuredBase) {
+        baseURL = normalizeBaseURL(configuredBase)
+      } else {
+        baseURL = await autoDetectLiteLLM(apiKey, customHeaders)
+      }
+
+      if (!baseURL) {
+        console.warn(
+          '[opencode-litellm] No LiteLLM proxy found. Configure provider.litellm.options.baseURL or start LiteLLM on port 4000/8000/8080.',
+        )
+        return
+      }
+
+      // Create provider entry if it doesn't exist
+      if (!existing) {
+        config.provider[CHAT_PROVIDER_ID] = {
           npm: '@ai-sdk/openai-compatible',
-        })
-      },
+          name: 'LiteLLM (proxy)',
+          options: {
+            baseURL: `${baseURL}/v1`,
+          },
+          models: {},
+        }
+      }
+
+      const provider = config.provider[CHAT_PROVIDER_ID] as Record<
+        string,
+        unknown
+      >
+
+      // Ensure npm is set
+      if (!provider.npm) {
+        provider.npm = '@ai-sdk/openai-compatible'
+      }
+
+      // Ensure options.baseURL is set
+      if (!provider.options) {
+        provider.options = { baseURL: `${baseURL}/v1` }
+      }
+
+      // Ensure models map exists
+      if (!provider.models) {
+        provider.models = {}
+      }
+
+      const models = provider.models as Record<string, unknown>
+
+      // Discover models with timeout
+      const work = async () => {
+        if (!(await checkLiteLLMHealth(baseURL!, apiKey, customHeaders))) {
+          console.warn(
+            `[opencode-litellm] LiteLLM appears offline or unauthorized at ${baseURL}`,
+          )
+          return
+        }
+
+        let discovered: LiteLLMModel[]
+        try {
+          discovered = await discoverLiteLLMModels(
+            baseURL!,
+            apiKey,
+            customHeaders,
+          )
+        } catch (error) {
+          console.warn(
+            '[opencode-litellm] Model discovery failed:',
+            error instanceof Error ? error.message : String(error),
+          )
+          return
+        }
+
+        if (discovered.length === 0) {
+          console.warn(
+            '[opencode-litellm] LiteLLM responded but exposed zero models.',
+          )
+          return
+        }
+
+        for (const model of discovered) {
+          // Don't overwrite user-curated entries
+          if (models[model.id]) continue
+          models[model.id] = toConfigModel(model)
+        }
+
+        // Remove the seed placeholder if real models were discovered
+        if (models['_'] && Object.keys(models).length > 1) {
+          delete models['_']
+        }
+
+        console.log(
+          `[opencode-litellm] Discovered ${discovered.length} models from ${baseURL}`,
+        )
+      }
+
+      await Promise.race([
+        work(),
+        new Promise<void>((resolve) =>
+          setTimeout(resolve, DISCOVERY_TIMEOUT_MS),
+        ),
+      ])
     },
   }
 }
 
-/**
- * Optional sibling plugin that registers the `litellm-responses`
- * provider for OpenAI reasoning-tier models.
- *
- * OpenAI's reasoning-tier models (`gpt-5*`, `o1`/`o3`/`o4*`) reject
- * requests that combine `reasoning_effort` with function tools when
- * sent to `/v1/chat/completions`. Routing those models through
- * `/v1/responses` (the OpenAI Responses API) avoids the rejection.
- *
- * This plugin is only active when the `litellm-responses` provider
- * is declared in `opencode.json`. When it is, the chat-only `litellm`
- * provider continues to register every discovered model — set
- * `chatApiModels` / `responsesApiModels` on either provider's options
- * if you want to control which side a particular model lives on.
- *
- * Example `opencode.json` snippet:
- *
- * {
- *   "provider": {
- *     "litellm-responses": {
- *       "npm": "@ai-sdk/openai",
- *       "name": "LiteLLM (responses)",
- *       "options": {
- *         "baseURL": "http://localhost:4000/v1",
- *         "apiKey": "{env:LITELLM_API_KEY}",
- *         "compatibility": "strict"
- *       }
- *     }
- *   }
- * }
- */
+// Re-export the responses plugin for backwards compat, but it's now a no-op.
+// The config hook approach handles all models in a single provider.
 export const LiteLLMResponsesPlugin: Plugin = async (_input: PluginInput) => {
-  return {
-    provider: {
-      id: RESPONSES_PROVIDER_ID,
-      models: async (provider) => {
-        return discoverBucket('responses', provider, {
-          id: RESPONSES_PROVIDER_ID,
-          url: '',
-          npm: '@ai-sdk/openai',
-        })
-      },
-    },
-  }
+  return {}
 }

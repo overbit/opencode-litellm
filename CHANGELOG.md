@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-05-11
+
+### Changed (BREAKING)
+- **Switched back to the `config` hook for model injection.** The
+  `provider.models` hook introduced in 0.3.0 is never called by
+  OpenCode for custom providers. This release rewrites the plugin to
+  use the `config` hook (the same approach used by `opencode-lmstudio`),
+  which mutates `config.provider.litellm.models` directly at startup.
+  No seed model is required in `opencode.json` — the plugin creates
+  the `models` map automatically.
+- **Simplified config.** The `"models": { "_": { "name": "seed" } }`
+  workaround from 0.4.x is no longer needed. Just declare the provider
+  with `npm`, `options.baseURL`, and optionally `apiKey`.
+- `LiteLLMResponsesPlugin` is now a no-op. All models are injected
+  through a single `litellm` provider via the config hook.
+
 ## [0.4.2] — 2026-05-11
 
 ### Fixed
@@ -215,7 +231,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions CI workflow (typecheck on Node 20 & 22).
 - Auto-publish workflow on GitHub release (requires `NPM_TOKEN` secret).
 
-[Unreleased]: https://github.com/yuseferi/opencode-litellm/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/yuseferi/opencode-litellm/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/yuseferi/opencode-litellm/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/yuseferi/opencode-litellm/compare/v0.4.0...v0.4.2
 [0.4.0]: https://github.com/yuseferi/opencode-litellm/compare/v0.3.1...v0.4.0
 [0.3.0]: https://github.com/yuseferi/opencode-litellm/compare/v0.2.3...v0.3.0
