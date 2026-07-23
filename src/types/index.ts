@@ -29,6 +29,9 @@ export interface LiteLLMModel {
   max_output_tokens?: number
   supports_function_calling?: boolean
   supports_vision?: boolean
+  supports_reasoning?: boolean
+  supports_pdf_input?: boolean
+  supports_audio_input?: boolean
 }
 
 export interface LiteLLMModelsResponse {
@@ -44,12 +47,17 @@ export interface LiteLLMModelsResponse {
 export interface LiteLLMModelInfo {
   id?: string
   db_model?: boolean
+  /** Alias LiteLLM assigns to the model; mirrors the `/v1/models` id. */
+  key?: string
   mode?: string
   max_tokens?: number
   max_input_tokens?: number
   max_output_tokens?: number
   supports_function_calling?: boolean
   supports_vision?: boolean
+  supports_reasoning?: boolean
+  supports_pdf_input?: boolean
+  supports_audio_input?: boolean
 }
 
 /** A single entry returned by LiteLLM's `/v1/model/info` endpoint. */
