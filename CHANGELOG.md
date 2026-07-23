@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Embedding / image / audio models no longer appear in the OpenCode
+  model picker.** The non-chat filter in `toConfigModel()` was a dead
+  code path that returned the model entry either way, so models like
+  `mistral/mistral-embed` showed up as selectable chat models.
+- **Model classification now works for database-defined models.**
+  `/v1/models` omits the `mode` field for DB-defined models, so
+  mode-based classification never fired. The plugin now fetches
+  `/v1/model/info` alongside `/v1/models` and enriches each discovered
+  model with its `mode`, token limits (`max_input_tokens` /
+  `max_output_tokens`), and capability flags
+  (`supports_function_calling`, `supports_vision`). Fields already
+  present on the `/v1/models` entry take precedence. The info call is
+  best-effort — if the endpoint is unavailable, classification falls
+  back to the previous id heuristics.
+- The startup log now reports how many non-chat models were hidden,
+  e.g. `Discovered 12 models from http://localhost:4000 (2 non-chat
+  models hidden)`.
+
 ## [0.5.0] — 2026-05-11
 
 ### Changed (BREAKING)
