@@ -29,12 +29,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yuseferi/opencode-litellm.git"
+    "url": "git+https://github.com/overbit/opencode-litellm.git"
   },
   "bugs": {
-    "url": "https://github.com/yuseferi/opencode-litellm/issues"
+    "url": "https://github.com/overbit/opencode-litellm/issues"
   },
-  "homepage": "https://github.com/yuseferi/opencode-litellm#readme",
+  "homepage": "https://github.com/overbit/opencode-litellm#readme",
   "publishConfig": {
     "access": "public"
   },
