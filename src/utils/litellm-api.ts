@@ -3,7 +3,12 @@ import type { LiteLLMModel, LiteLLMModelInfo, LiteLLMModelInfoResponse, LiteLLMM
 export const DEFAULT_LITELLM_URL = 'http://localhost:4000'
 const MODELS_ENDPOINT = '/v1/models'
 const MODEL_INFO_ENDPOINT = '/v1/model/info'
-const REQUEST_TIMEOUT_MS = 3000
+// Health checks fail fast so auto-detection stays snappy; the actual
+// discovery fetches get a generous budget because `/v1/model/info`
+// payloads from remote proxies with many database-defined models can
+// be large and slow to generate.
+const HEALTH_TIMEOUT_MS = 3000
+const FETCH_TIMEOUT_MS = 15000
 
 /**
  * Normalise a base URL so the rest of the plugin can rely on a
@@ -46,7 +51,7 @@ export async function checkLiteLLMHealth(
     const response = await fetch(buildAPIURL(baseURL), {
       method: 'GET',
       headers: buildHeaders(apiKey, customHeaders),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
     })
     // 401 still means a server is alive — we just don't have the right
     // credentials. Surface that as "unhealthy" so the user is prompted
@@ -67,7 +72,7 @@ export async function discoverLiteLLMModels(
   const response = await fetch(url, {
     method: 'GET',
     headers: buildHeaders(apiKey, customHeaders),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   })
 
   if (!response.ok) {
@@ -93,7 +98,7 @@ export async function discoverLiteLLMModelInfo(
   const response = await fetch(url, {
     method: 'GET',
     headers: buildHeaders(apiKey, customHeaders),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   })
 
   if (!response.ok) {
@@ -103,8 +108,27 @@ export async function discoverLiteLLMModelInfo(
   const data = (await response.json()) as LiteLLMModelInfoResponse
   const infoByName = new Map<string, LiteLLMModelInfo>()
   for (const entry of data.data ?? []) {
-    if (entry.model_name && entry.model_info) {
-      infoByName.set(entry.model_name, entry.model_info)
+    if (!entry.model_info) continue
+    // Some deployments set capability flags on the params block rather
+    // than inside model_info (e.g. `supports_vision: true` next to the
+    // upstream model string). Fill the gap so enrichment sees them.
+    const info: LiteLLMModelInfo = { ...entry.model_info }
+    const paramsVision = entry.litellm_params?.supports_vision
+    if (info.supports_vision == null && typeof paramsVision === 'boolean') {
+      info.supports_vision = paramsVision
+    }
+    // Index under every alias LiteLLM may use for this model — the
+    // `/v1/models` id can match any of them depending on how the
+    // deployment names its entries (alias vs upstream model string).
+    const keys = [
+      entry.model_name,
+      entry.model_info.key,
+      typeof entry.litellm_params?.model === 'string' ? entry.litellm_params.model : undefined,
+    ]
+    for (const key of keys) {
+      if (key && !infoByName.has(key)) {
+        infoByName.set(key, info)
+      }
     }
   }
   return infoByName
