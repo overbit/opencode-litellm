@@ -1,7 +1,8 @@
-import type { LiteLLMModel, LiteLLMModelsResponse } from '../types'
+import type { LiteLLMModel, LiteLLMModelInfo, LiteLLMModelInfoResponse, LiteLLMModelsResponse } from '../types'
 
 export const DEFAULT_LITELLM_URL = 'http://localhost:4000'
 const MODELS_ENDPOINT = '/v1/models'
+const MODEL_INFO_ENDPOINT = '/v1/model/info'
 const REQUEST_TIMEOUT_MS = 3000
 
 /**
@@ -75,6 +76,38 @@ export async function discoverLiteLLMModels(
 
   const data = (await response.json()) as LiteLLMModelsResponse
   return data.data ?? []
+}
+
+/**
+ * Fetch per-model metadata (`mode`, token limits, capability flags)
+ * from `/v1/model/info`, keyed by model name. `/v1/models` omits these
+ * fields for database-defined models, so classification (e.g. filtering
+ * out embedding models) relies on this endpoint.
+ */
+export async function discoverLiteLLMModelInfo(
+  baseURL: string = DEFAULT_LITELLM_URL,
+  apiKey?: string,
+  customHeaders?: Record<string, string>,
+): Promise<Map<string, LiteLLMModelInfo>> {
+  const url = buildAPIURL(baseURL, MODEL_INFO_ENDPOINT)
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: buildHeaders(apiKey, customHeaders),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  })
+
+  if (!response.ok) {
+    throw new Error(`LiteLLM responded with HTTP ${response.status} ${response.statusText}`)
+  }
+
+  const data = (await response.json()) as LiteLLMModelInfoResponse
+  const infoByName = new Map<string, LiteLLMModelInfo>()
+  for (const entry of data.data ?? []) {
+    if (entry.model_name && entry.model_info) {
+      infoByName.set(entry.model_name, entry.model_info)
+    }
+  }
+  return infoByName
 }
 
 /**

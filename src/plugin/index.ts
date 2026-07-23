@@ -2,6 +2,7 @@ import type { Plugin, PluginInput } from '@opencode-ai/plugin'
 import {
   autoDetectLiteLLM,
   checkLiteLLMHealth,
+  discoverLiteLLMModelInfo,
   discoverLiteLLMModels,
   normalizeBaseURL,
 } from '../utils/litellm-api'
@@ -10,7 +11,7 @@ import {
   extractModelOwner,
   categorizeModel,
 } from '../utils/format-model-name'
-import type { LiteLLMModel } from '../types'
+import type { LiteLLMModel, LiteLLMModelInfo } from '../types'
 
 const CHAT_PROVIDER_ID = 'litellm'
 const DISCOVERY_TIMEOUT_MS = 5000
@@ -33,12 +34,35 @@ function readCustomHeaders(
 }
 
 /**
+ * Overlay metadata from `/v1/model/info` onto a `/v1/models` entry.
+ * Fields already present on the lean entry win; the info block only
+ * fills gaps (notably `mode`, which `/v1/models` omits for
+ * database-defined models).
+ */
+function enrichModel(model: LiteLLMModel, info: LiteLLMModelInfo): LiteLLMModel {
+  return {
+    ...model,
+    mode: model.mode ?? info.mode,
+    max_tokens: model.max_tokens ?? info.max_tokens,
+    max_input_tokens: model.max_input_tokens ?? info.max_input_tokens,
+    max_output_tokens: model.max_output_tokens ?? info.max_output_tokens,
+    supports_function_calling: model.supports_function_calling ?? info.supports_function_calling,
+    supports_vision: model.supports_vision ?? info.supports_vision,
+  }
+}
+
+/**
  * Convert a discovered LiteLLM model into an OpenCode config-level
  * model entry (the shape used in `provider.*.models` inside
- * `opencode.json`).
+ * `opencode.json`). Returns `null` for non-chat models (embedding,
+ * image, audio) — they can't be used as primary chat models and would
+ * clutter the picker.
  */
-function toConfigModel(model: LiteLLMModel): Record<string, unknown> {
+function toConfigModel(model: LiteLLMModel): Record<string, unknown> | null {
   const type = categorizeModel(model)
+  if (type === 'embedding' || type === 'image' || type === 'audio') {
+    return null
+  }
   const entry: Record<string, unknown> = {
     name: formatModelName(model),
   }
@@ -53,11 +77,6 @@ function toConfigModel(model: LiteLLMModel): Record<string, unknown> {
   }
   if (model.supports_vision) {
     entry.attachment = true
-  }
-  if (type === 'embedding' || type === 'image' || type === 'audio') {
-    // skip non-chat models from the config — they can't be used as
-    // primary chat models and would clutter the picker.
-    return entry
   }
   return entry
 }
@@ -165,20 +184,27 @@ export const LiteLLMPlugin: Plugin = async (_input: PluginInput) => {
           return
         }
 
-        let discovered: LiteLLMModel[]
-        try {
-          discovered = await discoverLiteLLMModels(
-            baseURL!,
-            apiKey,
-            customHeaders,
-          )
-        } catch (error) {
+        // `/v1/models` omits `mode` and capability metadata for
+        // database-defined models, so fetch `/v1/model/info` alongside
+        // it. The info call is best-effort: without it, classification
+        // falls back to id heuristics.
+        const [modelsResult, infoResult] = await Promise.allSettled([
+          discoverLiteLLMModels(baseURL!, apiKey, customHeaders),
+          discoverLiteLLMModelInfo(baseURL!, apiKey, customHeaders),
+        ])
+
+        if (modelsResult.status === 'rejected') {
+          const error = modelsResult.reason
           console.warn(
             '[opencode-litellm] Model discovery failed:',
             error instanceof Error ? error.message : String(error),
           )
           return
         }
+
+        const discovered = modelsResult.value
+        const infoByName =
+          infoResult.status === 'fulfilled' ? infoResult.value : null
 
         if (discovered.length === 0) {
           console.warn(
@@ -187,10 +213,19 @@ export const LiteLLMPlugin: Plugin = async (_input: PluginInput) => {
           return
         }
 
+        let added = 0
+        let skipped = 0
         for (const model of discovered) {
           // Don't overwrite user-curated entries
           if (models[model.id]) continue
-          models[model.id] = toConfigModel(model)
+          const info = infoByName?.get(model.id)
+          const entry = toConfigModel(info ? enrichModel(model, info) : model)
+          if (!entry) {
+            skipped++
+            continue
+          }
+          models[model.id] = entry
+          added++
         }
 
         // Remove the seed placeholder if real models were discovered
@@ -199,7 +234,8 @@ export const LiteLLMPlugin: Plugin = async (_input: PluginInput) => {
         }
 
         console.log(
-          `[opencode-litellm] Discovered ${discovered.length} models from ${baseURL}`,
+          `[opencode-litellm] Discovered ${added} models from ${baseURL}` +
+            (skipped > 0 ? ` (${skipped} non-chat models hidden)` : ''),
         )
       }
 
